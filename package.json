@@ -1,18 +1,23 @@
 {
-    "name": "c9.ide.project-manager",
-    "description": "The repository for c9.ide.project-manager, a Cloud9 Project manager",
-    "version": "0.0.1",
-    "author": "Pleshevskiy Dmitriy",
-    "contributors": [],
-    "repository": {
-        "type": "git",
-        "url": "http://github.com/pleshevskiy/c9.ide.project-manager.git"
-    },
-    "plugins": {
-        "format": {}
-    },
-    "categories": [],
-    "licenses": [
-        "MIT"
-    ]
+  "name": "c9.ide.projectmanager",
+  "description": "The repository for c9.ide.project-manager, a Cloud9 Project manager",
+  "version": "0.2.3",
+  "author": "Pleshevskiy Dmitriy",
+  "contributors": [],
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/pleshevskiy/c9.ide.project-manager.git"
+  },
+  "plugins": {
+    "projectmanager": {
+      "packagePath": "plugins/c9.ide.projectmanager/projectmanager"
+    }
+  },
+  "categories": [
+    "manager"
+  ],
+  "licenses": [
+    "MIT"
+  ],
+  "permissions": "world"
 }
