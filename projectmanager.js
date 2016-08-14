@@ -1,6 +1,9 @@
 define(function(require, exports, module) {
+    var PATH = require('path');
+    
     main.consumes = [
-        "Plugin", "ui", "commands", "menus", "dialog.alert", "fs"
+        "Plugin", "ui", "commands", "menus", "dialog.alert",
+        "fs", "preferences", "settings"
     ];
     main.provides = ["projectmanager"];
     return main;
@@ -11,6 +14,13 @@ define(function(require, exports, module) {
         var commands = imports.commands;
         var menus = imports.menus;
         var fs = imports.fs;
+        var prefs = imports.preferences;
+        var settings = imports.settings;
+        
+        var SettingsKey = {
+            PROJECT_PATH: "user/project_manager/@project_path",
+            PROJECTS_PATH: "user/project_manager/@projects_path"
+        }
         
         /***** Initialization *****/
         
@@ -22,28 +32,56 @@ define(function(require, exports, module) {
             if (loaded) return false;
             loaded = true;
             
-            commands.addCommand({
-                name: "openproject",
-                hint: "open c9 project in cloud9",
-                msg: "open project",
-                bindKey: { mac: "Command-O", win: "Ctrl-O" },
-                exec: function(editor, args) {
-                    console.log(editor, args);
-                    // openProject(args.mode, editor, args.all);
-                    // openProject('plapped.com');
+            settings.on("read", function(){
+                settings.setDefaults("user/project_manager", [
+                    ["project_path", "~/project"],
+                    ["projects_path", "~/projects"]
+                ]);
+            }, plugin);
+            
+            prefs.add({
+                "Plugins" : {
+                    position: 450,
+                    "Project Manager" : {
+                        position: 100,
+                        "Directory of opened project": {
+                            type: "textbox",
+                            setting: SettingsKey.PROJECT_PATH,
+                            position: 100
+                        },
+                        "Directory with projects": {
+                            type: "textbox",
+                            setting: SettingsKey.PROJECTS_PATH,
+                            position: 200
+                        }
+                    }
                 }
             }, plugin);
             
-            // menus.addItemByPath("File/Open Project...", new ui.item({
-            //     selected: true,
-            //     value: "auto",
-            //     command: "openproject"
-            // }), 100, plugin);// menus.addItemByPath("File/Open Recent Project")
+            // commands.addCommand({
+            //     name: "openproject",
+            //     hint: "open c9 project in cloud9",
+            //     msg: "open project",
+            //     bindKey: { mac: "Command-O", win: "Ctrl-O" },
+            //     exec: function(editor, args) {
+            //         console.log(editor, args);
+            //         // openProject(args.mode, editor, args.all);
+            //         // openProject('plapped.com');
+            //     }
+            // }, plugin);
             
             getProjects();
         }
         
         /***** Methods *****/
+        
+        function getSettingsWithRootPrefix(settingsKey) {
+            var value = settings.get(settingsKey);
+            value.charAt(0) !== '~' && (value = '~' + value);
+            value.charAt(1) !== '/' && (value = '/' + value);
+            return value;
+        }
+        
         function getProjects() {
             var mnuFormat = new ui.menu({
                 onitemclick: function(e) {
@@ -56,7 +94,7 @@ define(function(require, exports, module) {
             
             menus.addItemByPath("File/Open Project/", mnuFormat, 501, plugin);
             
-            fs.readdir('~/projects/', function (err, files) {
+            fs.readdir(getSettingsWithRootPrefix(SettingsKey.PROJECTS_PATH), function (err, files) {
                 if (err) {
                     console.log(err);
                     throw new err;
@@ -85,14 +123,16 @@ define(function(require, exports, module) {
          */
         function openProject(projectName) {
             closeProject(function () {
-                fs.symlink('~/project', '~/projects/' + projectName, function (err, data) {
-                    if (err) {
-                        console.log(err);
-                        return;
-                    }
-                    
-                    window.location.reload();
-                });
+                fs.symlink(getSettingsWithRootPrefix(SettingsKey.PROJECT_PATH),
+                    PATH.join(getSettingsWithRootPrefix(SettingsKey.PROJECT_PATH), projectName),
+                    function (err, data) {
+                        if (err) {
+                            console.log(err);
+                            return;
+                        }
+                        
+                        window.location.reload();
+                    });
             });
         }
         
@@ -113,7 +153,6 @@ define(function(require, exports, module) {
         }
         
         /***** Lifecycle *****/
-        
         plugin.on("load", function() {
             load();
         });
@@ -127,31 +166,6 @@ define(function(require, exports, module) {
             loaded = false;
         });
         
-        /***** Register and define API *****/
-        
-        /**
-         * 
-         **/
-        plugin.freezePublicAPI({
-            /**
-             * 
-             */
-            getProjects: getProjects,
-            
-            /**
-             * 
-             */
-            // addFormatter: addFormatter,
-            
-            _events: [
-                /**
-                 * @event format
-                 * @param {Object} e
-                 * @param {String} e.mode
-                 */
-                // "format"
-            ]
-        });
         
         register(null, {
             projectmanager: plugin
