@@ -75,8 +75,8 @@ define(function(require, exports, module) {
         
         /***** Methods *****/
         
-        function getSettingsWithRootPrefix(settingsKey) {
-            var value = settings.get(settingsKey);
+        function getSetting(settingsKey) {
+            var value = settings.get(settingsKey).replace(/^[ \t]+|[ \t]+$/g, '');
             value.charAt(0) !== '~' && (value = '~' + value);
             value.charAt(1) !== '/' && (value = '/' + value);
             return value;
@@ -94,7 +94,7 @@ define(function(require, exports, module) {
             
             menus.addItemByPath("File/Open Project/", mnuFormat, 501, plugin);
             
-            fs.readdir(getSettingsWithRootPrefix(SettingsKey.PROJECTS_PATH), function (err, files) {
+            fs.readdir(getSetting(SettingsKey.PROJECTS_PATH), function (err, files) {
                 if (err) {
                     console.log(err);
                     throw new err;
@@ -123,8 +123,8 @@ define(function(require, exports, module) {
          */
         function openProject(projectName) {
             closeProject(function () {
-                fs.symlink(getSettingsWithRootPrefix(SettingsKey.PROJECT_PATH),
-                    PATH.join(getSettingsWithRootPrefix(SettingsKey.PROJECT_PATH), projectName),
+                fs.symlink(getSetting(SettingsKey.PROJECT_PATH),
+                    PATH.join(getSetting(SettingsKey.PROJECTS_PATH), projectName),
                     function (err, data) {
                         if (err) {
                             console.log(err);
