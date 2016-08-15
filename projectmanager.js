@@ -2,7 +2,7 @@ define(function(require, exports, module) {
     var PATH = require('path');
     
     main.consumes = [
-        "Plugin", "ui", "commands", "menus", "dialog.alert",
+        "Plugin", "ui", "commands", "menus", "dialog.alert", "tree",
         "fs", "preferences", "settings"
     ];
     main.provides = ["projectmanager"];
@@ -16,11 +16,13 @@ define(function(require, exports, module) {
         var fs = imports.fs;
         var prefs = imports.preferences;
         var settings = imports.settings;
+        var tree = imports.tree;
         
         var SettingsKey = {
+            PROJECT_NAME: "user/project_manager/@project_name",
             PROJECT_PATH: "user/project_manager/@project_path",
             PROJECTS_PATH: "user/project_manager/@projects_path"
-        }
+        };
         
         /***** Initialization *****/
         
@@ -34,6 +36,7 @@ define(function(require, exports, module) {
             
             settings.on("read", function(){
                 settings.setDefaults("user/project_manager", [
+                    ["project_name", "Project"],
                     ["project_path", "~/project"],
                     ["projects_path", "~/projects"]
                 ]);
@@ -70,10 +73,16 @@ define(function(require, exports, module) {
             //     }
             // }, plugin);
             
+            changeProjectName();
             getProjects();
         }
         
         /***** Methods *****/
+        
+        function changeProjectName() {
+            tree.tree.provider.root.children[0].label = settings.get(SettingsKey.PROJECT_NAME);
+            tree.refresh();
+        }
         
         function getSetting(settingsKey) {
             var value = settings.get(settingsKey).replace(/^[ \t]+|[ \t]+$/g, '');
@@ -131,6 +140,7 @@ define(function(require, exports, module) {
                             return;
                         }
                         
+                        settings.set(SettingsKey.PROJECT_NAME, projectName);
                         window.location.reload();
                     });
             });
