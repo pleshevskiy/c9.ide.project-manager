@@ -17,6 +17,7 @@ define(function(require, exports, module) {
         var prefs = imports.preferences;
         var settings = imports.settings;
         var tree = imports.tree;
+        var menu;
         
         var SettingsKey = {
             PROJECT_NAME: "user/project_manager/@project_name",
@@ -41,6 +42,14 @@ define(function(require, exports, module) {
                     ["projects_path", "~/projects"]
                 ]);
             }, plugin);
+            
+            var findTimeout = null;
+            settings.on(SettingsKey.PROJECTS_PATH, function () {
+                clearTimeout(findTimeout);
+                findTimeout = setTimeout(function () {
+                    getProjects();
+                }, 1000);
+            });
             
             prefs.add({
                 "Plugins" : {
@@ -79,48 +88,82 @@ define(function(require, exports, module) {
         
         /***** Methods *****/
         
+        /**
+         * Change name for root directory of project
+         */
         function changeProjectName() {
             tree.tree.provider.root.children[0].label = settings.get(SettingsKey.PROJECT_NAME);
             tree.refresh();
         }
         
-        function getSetting(settingsKey) {
-            var value = settings.get(settingsKey).replace(/^[ \t]+|[ \t]+$/g, '');
+        /**
+         * Fix user settings for project directories
+         * 
+         * @param {string} directoryPath
+         */
+        function fixDirectoryPath(directoryPath) {
+            var value = directoryPath.replace(/^[ \t]+|[ \t]+$/g, '');
             value.charAt(0) !== '~' && (value = '~' + value);
             value.charAt(1) !== '/' && (value = '/' + value);
             return value;
         }
         
+        /**
+         * Get all projects and push to menu
+         */
         function getProjects() {
-            var mnuFormat = new ui.menu({
-                onitemclick: function(e) {
-                    if (e.value && e.value != "auto") {
-                        openProject(e.value);
-                        // console.log(e.value);
+            if (menu) {
+                var items = menu.childNodes || [];
+                for (var i = items.length - 1; i >= 0; i--) {
+                    menu.removeChild(items[i])
+                }
+            } else {
+                menu = new ui.menu({
+                    onitemclick: function(e) {
+                        if (e.value && e.value !== "auto") {
+                            openProject(e.value);
+                        }
                     }
-                }
-            });
-            
-            menus.addItemByPath("File/Open Project/", mnuFormat, 501, plugin);
-            
-            fs.readdir(getSetting(SettingsKey.PROJECTS_PATH), function (err, files) {
-                if (err) {
-                    console.log(err);
-                    throw new err;
-                }
+                });
                 
-                var c = 0;
-         
-                files.forEach(function (file) {
-                    if (!/directory$/.test(file.mime)
-                            || file.name.charAt(0) === '.') {
+                menus.addItemByPath("File/Open Project/", menu, 501, plugin);
+            }
+            
+            const paths = settings.get(SettingsKey.PROJECTS_PATH).split(':');
+            paths.forEach(function (directory, index) {
+                directory = fixDirectoryPath(directory);
+                fs.readdir(directory, function (err, files) {
+                    if (err) {
+                        console.warn(err);
                         return;
                     }
                     
-                    menus.addItemByPath(
-                        "File/Open Project/" + file.name,
-                        new ui.item({value: file.name}),
-                        c += 100, plugin);
+                    menu.appendChild(new ui.divider());
+                    menu.appendChild(new ui.item({
+                        caption: directory,
+                        value: directory
+                    }));
+                        
+                    if (!files.length) {
+                        menu.appendChild(new ui.item({
+                            caption: 'empty folder',
+                            value: 'auto',
+                            disable: true
+                        }));
+                    }
+                    
+                    files.forEach(function (file) {
+                        if (!/directory$/.test(file.mime)
+                                || file.name.charAt(0) === '.') {
+                            return;
+                        }
+                        
+                        let filePath = PATH.join(directory, file.name);
+                        menu.appendChild(new ui.item({
+                            caption: filePath,
+                            value: filePath
+                        }));
+                    });
                 });
             });
         }
@@ -130,10 +173,13 @@ define(function(require, exports, module) {
          * 
          * @param {string} projectName  directory name of project
          */
-        function openProject(projectName) {
+        function openProject(projectDir) {
+            var projectName = projectDir.split('/').slice(-1)[0];
+            
             closeProject(function () {
-                fs.symlink(getSetting(SettingsKey.PROJECT_PATH),
-                    PATH.join(getSetting(SettingsKey.PROJECTS_PATH), projectName),
+                fs.symlink(
+                    fixDirectoryPath(settings.get(SettingsKey.PROJECT_PATH)),
+                    projectDir,
                     function (err, data) {
                         if (err) {
                             console.log(err);
@@ -174,6 +220,7 @@ define(function(require, exports, module) {
         });
         plugin.on("unload", function() {
             loaded = false;
+            menu = null;
         });
         
         
