@@ -3,7 +3,7 @@ define(function(require, exports, module) {
     
     main.consumes = [
         "Plugin", "ui", "commands", "menus", "dialog.alert", "tree",
-        "fs", "preferences", "settings"
+        "fs", "preferences", "settings", "Wizard", "WizardPage"
     ];
     main.provides = ["projectmanager"];
     return main;
@@ -17,7 +17,11 @@ define(function(require, exports, module) {
         var prefs = imports.preferences;
         var settings = imports.settings;
         var tree = imports.tree;
+        var Wizard = imports.Wizard;
+        var WizardPage = imports.WizardPage;
+        
         var menu;
+        var overview = {};
         
         var SettingsKey = {
             PROJECT_NAME: "user/project_manager/@project_name",
@@ -27,13 +31,29 @@ define(function(require, exports, module) {
         
         /***** Initialization *****/
         
-        var plugin = new Plugin("Ajax.org", main.consumes);
+        var plugin = new Wizard("Ajax.org", main.consumes, {
+            title: "Project manager",
+            allowClose: true,
+            class: "project-manager",
+            resizable: false,
+            height: 200,
+            width: 360
+        });
         var emit = plugin.getEmitter();
         
         var loaded = false;
         function load() {
             if (loaded) return false;
             loaded = true;
+            
+            commands.addCommand({
+                name: "projectmanager.new",
+                exec: function(editor, args){ 
+                    draw();
+                    plugin.startPage = overview.new;
+                    plugin.show(true);
+                }
+            }, plugin);
             
             settings.on("read", function(){
                 settings.setDefaults("user/project_manager", [
@@ -70,20 +90,36 @@ define(function(require, exports, module) {
                 }
             }, plugin);
             
-            // commands.addCommand({
-            //     name: "openproject",
-            //     hint: "open c9 project in cloud9",
-            //     msg: "open project",
-            //     bindKey: { mac: "Command-O", win: "Ctrl-O" },
-            //     exec: function(editor, args) {
-            //         console.log(editor, args);
-            //         // openProject(args.mode, editor, args.all);
-            //         // openProject('plapped.com');
-            //     }
-            // }, plugin);
+            menus.addItemByPath("File/New Project", new ui.item({
+                command: "projectmanager.new"
+            }), 502, plugin);
             
             changeProjectName();
             getProjects();
+        }
+        
+        var drawn;
+        function draw(){
+            if (drawn) return;
+            drawn = true;
+            
+            // ui.insertCss(require("text!./style.css"), options.staticPrefix, plugin);
+            
+            // Page Intro - displays intro texts
+            overview.new = new WizardPage({ name: "new" }, plugin);
+            overview.new.on("draw", function (e) {
+                ui.insertHtml(e.html, require("text!./pages/new.html"), overview.new);
+                plugin.title = 'Создание проекта';
+                plugin.on('finish', function () {
+                    newProject(e.html.querySelector('input').value);
+                });
+            });
+            overview.new.on("show", function(){
+                // updateIntro();
+                plugin.showCancel = true;
+                plugin.showFinish = true;
+                plugin.showNext = false;
+            });
         }
         
         /***** Methods *****/
@@ -102,9 +138,9 @@ define(function(require, exports, module) {
          * @param {string} directoryPath
          */
         function fixDirectoryPath(directoryPath) {
-            var value = directoryPath.replace(/^[ \t]+|[ \t]+$/g, '');
+            var value = directoryPath.trim();
             value.charAt(0) !== '~' && (value = '~' + value);
-            value.charAt(1) !== '/' && (value = '/' + value);
+            value.charAt(1) !== '/' && (value = value[0] + '/' + value.slice(1));
             return value;
         }
         
@@ -115,7 +151,7 @@ define(function(require, exports, module) {
             if (menu) {
                 var items = menu.childNodes || [];
                 for (var i = items.length - 1; i >= 0; i--) {
-                    menu.removeChild(items[i])
+                    menu.removeChild(items[i]);
                 }
             } else {
                 menu = new ui.menu({
@@ -182,11 +218,14 @@ define(function(require, exports, module) {
                     projectDir,
                     function (err, data) {
                         if (err) {
-                            console.log(err);
+                            console.error(err);
                             return;
                         }
                         
-                        settings.set(SettingsKey.PROJECT_NAME, projectName);
+                        settings.set(
+                            SettingsKey.PROJECT_NAME,
+                            projectName + ' (' + projectDir + ')'
+                        );
                         window.location.reload();
                     });
             });
@@ -200,11 +239,27 @@ define(function(require, exports, module) {
         function closeProject(callback) {
             fs.unlink('~/project', function (err) {
                 if (err) {
-                    console.log(err);
+                    console.error(err);
                     return;
                 }
                 
                 callback();
+            });
+        }
+        
+        /**
+         * New project
+         */
+        function newProject(projectPath) {
+            if (projectPath.indexOf('/') === -1)
+                projectPath = 'projects/' + projectPath;
+            projectPath = fixDirectoryPath(projectPath);
+            fs.mkdir(projectPath, function (err) {
+                if (err) {
+                    console.log(err);
+                    return;
+                }
+                openProject(projectPath);
             });
         }
         
@@ -221,6 +276,8 @@ define(function(require, exports, module) {
         plugin.on("unload", function() {
             loaded = false;
             menu = null;
+            drawn = null;
+            overview = null;
         });
         
         
